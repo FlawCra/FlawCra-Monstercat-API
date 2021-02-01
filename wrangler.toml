@@ -1,0 +1,7 @@
+name = "mcat"
+type = "webpack"
+account_id = "089237543c212eb2e79cae28a2ec3810"
+workers_dev = true
+route = ""
+zone_id = ""
+webpack_config = "webpack.config.js"
