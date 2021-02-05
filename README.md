@@ -1,4 +1,4 @@
-# FlawCra-Monstercat-API
+# FlawCra-Monstercat-API [![official FlawCra project](https://flawcra.cc/img/badges/official_flat.svg)](https://github.com/FlawCra)
 
 API root path ```https://mcat.flawcra.cc/release/<RELEASE-ID>```
 
