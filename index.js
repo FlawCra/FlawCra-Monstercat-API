@@ -36,42 +36,7 @@ async function serveAsset(event) {
     outStr += '], "releaseTitle":"'+response.release.title+'", "artistsTitle":"'+response.release.artistsTitle+'", "catalogId":"'+response.release.catalogId+'"}';
     //console.log(response.content)
     var ctType = "application/json";
-    if(getParameterByName("stream", event.request.url) != null) {
-      if(getParameterByName("i", event.request.url) != null) {
-        var parsedJson = JSON.parse(outStr);
-        var audio = await fetch(parsedJson.tracks[parseInt(getParameterByName("i", event.request.url))].streamUrl);
-              let { readable, writable } = new TransformStream();
-              audio.body.pipeTo(writable)
-              //console.log(audio)
-              //console.log(response.content)
-              //var headers = { 'cache-control': 'public, max-age=14400', 'Access-Control-Allow-Origin': '*', 'content-type': "audio/mp3", 'Content-Encoding':'deflate' }
-              audio.headers['cache-control'] = "public, max-age=14400";
-              audio.headers['Access-Control-Allow-Origin'] = "*";
-              audio.headers['Content-Type'] = "audio/mp3";
-              audio.headers['Content-Encoding'] = "deflate";
-              //audio.headers['Content-Length'] = tmpJson.original_content_size;
-              response = new Response(readable, audio);
-              event.waitUntil(cache.put(event.request, response.clone()));
-              return response
-      } else {
-        var parsedJson = JSON.parse(outStr);
-        var audio = await fetch(parsedJson.tracks[0].streamUrl);
-              let { readable, writable } = new TransformStream();
-              audio.body.pipeTo(writable)
-              //console.log(audio)
-              //console.log(response.content)
-              //var headers = { 'cache-control': 'public, max-age=14400', 'Access-Control-Allow-Origin': '*', 'content-type': "audio/mp3", 'Content-Encoding':'deflate' }
-              audio.headers['cache-control'] = "public, max-age=14400";
-              audio.headers['Access-Control-Allow-Origin'] = "*";
-              audio.headers['Content-Type'] = "audio/mp3";
-              audio.headers['Content-Encoding'] = "deflate";
-              //audio.headers['Content-Length'] = tmpJson.original_content_size;
-              response = new Response(readable, audio);
-              event.waitUntil(cache.put(event.request, response.clone()));
-              return response
-      }
-      
-    }
+    
 
     if(getParameterByName("cover", event.request.url) != null) {
         var parsedJson = JSON.parse(outStr);
@@ -94,7 +59,7 @@ async function serveAsset(event) {
     if(getParameterByName("ui", event.request.url) != null) {
     	var parsedJson = JSON.parse(outStr);
     	ctType = "text/html";
-    	outStr = `<!DOCTYPE html> <html> <head> <meta charset="UTF-8"> <link rel="icon" type="image/jpeg" href="https://mcat.flawcra.cc/release/${parsedJson.catalogId}?cover" /> <meta name="language" content="english"> <meta http-equiv="content-type" content="text/html"> <meta name="author" content="FlawCra"> <meta name="designer" content="FlawCra"> <meta name="publisher" content="FlawCra"> <meta name="no-email-collection" content="http://www.unspam.com/noemailcollection/"> <meta name="description" content="`+parsedJson.releaseTitle+` - `+parsedJson.artistsTitle;
+    	outStr = `<!DOCTYPE html> <html> <head> <meta charset="UTF-8"> <link rel="icon" type="image/jpeg" href="${parsedJson.tracks[0].coverUrl}" /> <meta name="language" content="english"> <meta http-equiv="content-type" content="text/html"> <meta name="author" content="FlawCra"> <meta name="designer" content="FlawCra"> <meta name="publisher" content="FlawCra"> <meta name="no-email-collection" content="http://www.unspam.com/noemailcollection/"> <meta name="description" content="`+parsedJson.releaseTitle+` - `+parsedJson.artistsTitle;
     	if(getParameterByName("loop", event.request.url) != null) {
     		outStr += ` (loop`;
         if(getParameterByName("autoplay", event.request.url) != null) {
@@ -173,6 +138,11 @@ async function serveAsset(event) {
           padding: 0; 
           margin: 0;
         } 
+        /*
+        Sliders begin
+        Snipet from https://www.w3schools.com/howto/howto_js_rangeslider.asp
+        */
+
         .slider { 
           -webkit-appearance: none; 
           width: 100%; 
@@ -227,6 +197,9 @@ async function serveAsset(event) {
           background: #0078d7; 
           cursor: pointer; 
         } 
+        
+        // Sliders end
+        
         .gold { 
           border: 5px solid #daa520; 
           border-radius: 5px; 
@@ -285,9 +258,7 @@ async function serveAsset(event) {
       window["lastUid"] = "";
       window["timeSlider"] = document.getElementById("timeSlider");
       window["volumeSlider"] = document.getElementById("volumeSlider");
-      window["volumeSlider"].oninput = function() {
-        intercom.emit('sync', {command: "setVol", param: (window["volumeSlider"].value / 100)});
-      };
+      
       function registerVariables(uid, overlayDom, audioDom, timeDom, volDom, coverDom, timeSliderDom, link) { 
         coverDom.onloaded = () => {
           $(".gold").trigger("resize.sparkle");
@@ -354,10 +325,10 @@ async function serveAsset(event) {
         timeElem.innerHTML = convertElapsedTime(currentTime) + "/" + convertElapsedTime(duration);
         var percentage = currentTime / duration;
       } 
+      window["volumeSlider"].oninput = function() {
+        intercom.emit('sync', {command: "setVol", param: (window["volumeSlider"].value / 100)});
+      };
       </script>
-      <div class="image-container center"> 
-        <img class='center' src="https://www.monstercat.com/player/monstercat-player-logo.png" /> 
-      </div>
       `;
     	var uuid = uuidv4().replaceAll("-","_");
 
@@ -375,7 +346,15 @@ async function serveAsset(event) {
               </div>
               <audio id="audio-${uuid}" volume='0.5' style='display: none;'></audio> 
               <script class="remove" type='text/javascript'> 
-                registerVariables("${uuid}", document.getElementById("overlay-${uuid}"), document.getElementById("audio-${uuid}"), document.getElementById("time-${uuid}"), null, document.getElementById("cover-${uuid}"), null, "https://mcat.flawcra.cc/release/${parsedJson.catalogId}?stream&i=${item.index}"); 
+                registerVariables("${uuid}", 
+                  document.getElementById("overlay-${uuid}"), 
+                  document.getElementById("audio-${uuid}"), 
+                  document.getElementById("time-${uuid}"), 
+                  null, 
+                  document.getElementById("cover-${uuid}"), 
+                  null, 
+                  "${item.streamUrl}"
+                ); 
               </script>
             </div>`;
             if(item.inEarlyAccess) {
