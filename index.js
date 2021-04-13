@@ -21,7 +21,7 @@ async function serveAsset(event) {
     var outStr = '{"success":true, "trackNumber": '+tracks.slice(-1).pop().trackNumber+', "tracks": [';
     var trackCount = tracks.length;
     var i = 0;
-    var coverUrl = "https://connect.monstercat.com/v2/release/"+response.release.id+"/cover?image_width=3000";
+    var coverUrl = "https://connect.monstercat.com/v2/release/"+response.release.id+"/cover";
     for (let track of tracks) {
         i++;
         var streamUrl = "https://connect.monstercat.com/v2/release/"+track.release.id+"/track-stream/"+track.id;
@@ -54,6 +54,29 @@ async function serveAsset(event) {
               response = new Response(readable, audio);
               event.waitUntil(cache.put(event.request, response.clone()));
               return response
+    }
+
+    if(getParameterByName("metadata", event.request.url) != null && getParameterByName("metadata", event.request.url) != "") {
+      var metaId = getParameterByName("metadata", event.request.url);
+        var parsedJson = JSON.parse(outStr);
+        var metaOut = `
+        {
+          "title": "${parsedJson.tracks[metaId].title}",
+          "artist": "${parsedJson.tracks[metaId].artistsTitle}",
+          "album": "${parsedJson.releaseTitle}",
+          "artwork": [
+            { "src": "${parsedJson.tracks[0].coverUrl}?image_width=96",  "sizes": "96x96",   "type": "image/png" },
+            { "src": "${parsedJson.tracks[0].coverUrl}?image_width=128", "sizes": "128x128", "type": "image/png" },
+            { "src": "${parsedJson.tracks[0].coverUrl}?image_width=192", "sizes": "192x192", "type": "image/png" },
+            { "src": "${parsedJson.tracks[0].coverUrl}?image_width=256", "sizes": "256x256", "type": "image/png" },
+            { "src": "${parsedJson.tracks[0].coverUrl}?image_width=384", "sizes": "384x384", "type": "image/png" },
+            { "src": "${parsedJson.tracks[0].coverUrl}?image_width=512", "sizes": "512x512", "type": "image/png" }
+          ]
+        }`;
+              const headers = { 'cache-control': 'public, max-age=14400', 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' }
+              response = new Response(metaOut, { headers });
+              event.waitUntil(cache.put(event.request, response.clone()));
+              return response;   
     }
 
     if(getParameterByName("ui", event.request.url) != null) {
@@ -293,7 +316,32 @@ async function serveAsset(event) {
         if (window["audio-"+songUid].paused) {
           intercom.emit('sync', {command: "pause_all"});
           if(window["lastUid"] != songUid) {
+
+          fetch("?metadata="+window["audio-"+songUid].getAttribute("index"), {
+              "credentials": "omit",
+              "headers": {
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:87.0) Gecko/20100101 Firefox/87.0",
+                  "Accept": "*/*",
+                  "Accept-Language": "en-US,en;q=0.5",
+                  "Pragma": "no-cache",
+                  "Cache-Control": "no-cache"
+              },
+              "method": "GET",
+              "mode": "cors"
+          }).then(async (metadataRequest) => {
+
+            var metadata = await metadataRequest.json();
+            navigator.mediaSession.metadata = new MediaMetadata({
+              title: metadata.title,
+              artist: metadata.artist,
+              album: metadata.album,
+              artwork: metadata.artwork
+            });
+
+          });
+
             //console.log("new uid: "+songUid);
+            window["currentUid"] = songUid;
             window["timeSlider"].oninput = null;
             
             window["timeSlider"].max = window["audio-"+songUid].duration;
@@ -303,11 +351,13 @@ async function serveAsset(event) {
             window["lastUid"] = songUid;
           }
           window["audio-"+songUid].play();
-
           window["overlay-"+songUid].src = pauseImg;
+          navigator.mediaSession.playbackState = "playing";
+          
         } else { 
           window["audio-"+songUid].pause();
           window["overlay-"+songUid].src = playImg;
+          navigator.mediaSession.playbackState = "paused";
         } 
       } 
       function convertElapsedTime(inputSeconds) { 
@@ -344,7 +394,7 @@ async function serveAsset(event) {
                   <div class="overlay center" id="time-${uuid}">0:00</div>
                 </div>
               </div>
-              <audio id="audio-${uuid}" volume='0.5' style='display: none;'></audio> 
+              <audio id="audio-${uuid}" volume='0.5' index="${item.index}" style='display: none;'></audio> 
               <script class="remove" type='text/javascript'> 
                 registerVariables("${uuid}", 
                   document.getElementById("overlay-${uuid}"), 
@@ -399,6 +449,14 @@ async function serveAsset(event) {
           });
 
           intercom.emit('sync', {command: "setVol", param: 0.5});
+
+          navigator.mediaSession.setActionHandler('play', async function() {
+            togglePlayPause(window["currentUid"]);
+          });
+
+          navigator.mediaSession.setActionHandler('pause', function() {
+            togglePlayPause(window["currentUid"]);
+          });
 
           for(var _ of document.getElementsByClassName("remove")) {
             if(_.hasAttribute("id")) {
