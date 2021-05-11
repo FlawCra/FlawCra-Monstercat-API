@@ -369,12 +369,22 @@ async function serveAsset(event) {
         return minutes + ":" + seconds;
       } 
       function setProgress(aud, timeElem, uid) { 
+        updatePositionState();
         var currentTime = aud.currentTime;
         var duration = aud.duration;
         window["timeSlider"].value = aud.currentTime;
         timeElem.innerHTML = convertElapsedTime(currentTime) + "/" + convertElapsedTime(duration);
         var percentage = currentTime / duration;
       } 
+      function updatePositionState() {
+        var audioEl = window["audio-"+window["currentUid"]];
+        navigator.mediaSession.setPositionState({
+          duration: audioEl.duration,
+          playbackRate: audioEl.playbackRate,
+          position: audioEl.currentTime
+        });
+      }
+
       window["volumeSlider"].oninput = function() {
         intercom.emit('sync', {command: "setVol", param: (window["volumeSlider"].value / 100)});
       };
@@ -456,6 +466,22 @@ async function serveAsset(event) {
 
           navigator.mediaSession.setActionHandler('pause', function() {
             togglePlayPause(window["currentUid"]);
+          });
+
+          let defaultSkipTime = 10; /* Time to skip in seconds by default */
+
+          navigator.mediaSession.setActionHandler('seekbackward', function(event) {
+            var audio = window["audio-"+window["currentUid"]];
+            const skipTime = event.seekOffset || defaultSkipTime;
+            audio.currentTime = Math.max(audio.currentTime - skipTime, 0);
+            updatePositionState();
+          });
+
+          navigator.mediaSession.setActionHandler('seekforward', function(event) {
+            var audio = window["audio-"+window["currentUid"]];
+            const skipTime = event.seekOffset || defaultSkipTime;
+            audio.currentTime = Math.min(audio.currentTime + skipTime, audio.duration);
+            updatePositionState();
           });
 
           for(var _ of document.getElementsByClassName("remove")) {
