@@ -1,5 +1,16 @@
 String.prototype.replaceAll = function(f,r){return this.split(f).join(r);}
 
+Array.prototype.count = function() {
+  	var count = 0;
+	for (var i=0; i<this.length; i++) {
+		if (this[i] != undefined) {
+			count++;
+		}
+	}
+	return count;
+}
+
+
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event))
 })
@@ -13,49 +24,30 @@ async function serveAsset(event) {
     return new Response('{"success":false, "tracks": []}', { status: 400 });
   }
   if (!response) {
-    response = await fetch("https://connect.monstercat.com/v2/catalog"+url.pathname);
+    response = await fetch("https://www.monstercat.com/api/catalog"+url.pathname);
     response = await response.json();
-    var releaseId = response.release.id;
-    var tracks = response.tracks;
-    //console.log(response)
-    var outStr = '{"success":true, "trackNumber": '+tracks.slice(-1).pop().trackNumber+', "tracks": [';
-    var trackCount = tracks.length;
+    var tracks = response.Tracks;
+    console.log(tracks)
+    var outStr = '{"success":true, "trackNumber": '+tracks.slice(-1).pop().TrackNumber+', "tracks": [';
+    console.log(tracks.count());
+    var trackCount = tracks.count();
     var i = 0;
-    var coverUrl = "https://connect.monstercat.com/v2/release/"+response.release.id+"/cover";
+    var coverUrl = "https://www.monstercat.com"+url.pathname+"/cover";
     for (let track of tracks) {
         i++;
-        var streamUrl = "https://connect.monstercat.com/v2/release/"+track.release.id+"/track-stream/"+track.id;
+        var streamUrl = "https://www.monstercat.com/api/release/"+track.Release.Id+"/track-stream/"+track.Id;
         var index = i-1;
         if(i >= trackCount) {
-          outStr += generateOutStr(track.title, track.artistsTitle, streamUrl, track.creatorFriendly, true, track.artists, track.inEarlyAccess, coverUrl, track.duration, index);
+          outStr += generateOutStr(track.Title, track.ArtistsTitle, streamUrl, track.CreatorFriendly, true, track.Artists, track.InEarlyAccess, coverUrl, track.Duration, index);
         } else {
-          outStr += generateOutStr(track.title, track.artistsTitle, streamUrl, track.creatorFriendly, false, track.artists, track.inEarlyAccess, coverUrl, track.duration, index);
+          outStr += generateOutStr(track.Title, track.ArtistsTitle, streamUrl, track.CreatorFriendly, false, track.Artists, track.InEarlyAccess, coverUrl, track.Duration, index);
         }
         
     }
-    outStr += '], "releaseTitle":"'+response.release.title+'", "artistsTitle":"'+response.release.artistsTitle+'", "catalogId":"'+response.release.catalogId+'"}';
+    outStr += '], "releaseTitle":"'+response.Release.Title+'", "artistsTitle":"'+response.Release.ArtistsTitle+'", "catalogId":"'+response.Release.CatalogId+'"}';
     //console.log(response.content)
     var ctType = "application/json";
     
-
-    if(getParameterByName("cover", event.request.url) != null) {
-        var parsedJson = JSON.parse(outStr);
-        var audio = await fetch(parsedJson.tracks[0].coverUrl);
-              let { readable, writable } = new TransformStream();
-              audio.body.pipeTo(writable)
-              //console.log(audio)
-              //console.log(response.content)
-              //var headers = { 'cache-control': 'public, max-age=14400', 'Access-Control-Allow-Origin': '*', 'content-type': "audio/mp3", 'Content-Encoding':'deflate' }
-              audio.headers['cache-control'] = "public, max-age=14400";
-              audio.headers['Access-Control-Allow-Origin'] = "*";
-              audio.headers['Content-Type'] = "image/jpeg";
-              audio.headers['Content-Encoding'] = "deflate";
-              //audio.headers['Content-Length'] = tmpJson.original_content_size;
-              response = new Response(readable, audio);
-              event.waitUntil(cache.put(event.request, response.clone()));
-              return response
-    }
-
     if(getParameterByName("metadata", event.request.url) != null && getParameterByName("metadata", event.request.url) != "") {
       var metaId = getParameterByName("metadata", event.request.url);
         var parsedJson = JSON.parse(outStr);
@@ -63,7 +55,7 @@ async function serveAsset(event) {
         {
           "title": "${parsedJson.tracks[metaId].title}",
           "artist": "${parsedJson.tracks[metaId].artistsTitle}",
-          "album": "${parsedJson.releaseTitle}",
+          "album": "${parsedJson.ReleaseTitle}",
           "artwork": [
             { "src": "${parsedJson.tracks[0].coverUrl}?image_width=96",  "sizes": "96x96",   "type": "image/png" },
             { "src": "${parsedJson.tracks[0].coverUrl}?image_width=128", "sizes": "128x128", "type": "image/png" },
@@ -398,7 +390,7 @@ async function serveAsset(event) {
             <div class='group' id='group-${uuid}'>
               <h1 class='center'>${item.title} - ${item.artistsTitle}</h1>
               <div class="image-container center"> 
-                <img class='center' id='cover-${uuid}' onclick='togglePlayPause("${uuid}");' src="https://mcat.flawcra.cc/release/${parsedJson.catalogId}?cover" /> 
+                <img class='center' id='cover-${uuid}' onclick='togglePlayPause("${uuid}");' src="${item.coverUrl}" /> 
                 <div class="after" onclick='togglePlayPause("${uuid}");'>
                   <img class='center toggleBtn' id="overlay-${uuid}" src="" />
                   <div class="overlay center" id="time-${uuid}">0:00</div>
